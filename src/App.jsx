@@ -404,6 +404,7 @@ export default function App() {
         const overall = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
         const level = LEVELS.find(l => overall >= l.min && overall <= l.max) || LEVELS[0];
 
+        if (!supabase) return;
         const { data, error } = await supabase
           .from("assessment_results")
           .insert({
@@ -807,7 +808,7 @@ export default function App() {
                     if (contactForm.name && contactForm.email && contactForm.org) {
                       // Save to Supabase
                       try {
-                        await supabase.from("contact_requests").insert({
+                        if (supabase) await supabase.from("contact_requests").insert({
                           assessment_id: assessmentId || null,
                           name: contactForm.name,
                           email: contactForm.email,
