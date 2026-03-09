@@ -227,7 +227,7 @@ export default function App() {
         <div style={{display:"flex",flexWrap:"wrap",gap:4,justifyContent:"center",marginBottom:14}}>
           {["\ud83d\udcac Scenarios","\ud83d\udd0d Spotlights","\u26a1 Rapid Fire","\ud83d\udcca Rankings","\u2194\ufe0f Spectrum"].map((t,i) => <span key={i} style={{padding:"2px 8px",borderRadius:10,background:"rgba(255,255,255,0.03)",color:B.frost,fontSize:9}}>{t}</span>)}
         </div>
-        <div style={{textAlign:"center"}}><button onClick={() => {if(role) startFresh();}} disabled={!role} style={{padding:"11px 36px",borderRadius:8,border:"none",fontSize:13,fontWeight:700,background:role?`linear-gradient(135deg,${B.accent},${B.dim})`:"rgba(255,255,255,0.05)",color:role?B.white:B.gray,cursor:role?"pointer":"not-allowed"}}>Begin Assessment \u2192</button></div>
+        <div style={{textAlign:"center"}}><button onClick={() => {if(role) startFresh();}} disabled={!role} style={{padding:"11px 36px",borderRadius:8,border:"none",fontSize:13,fontWeight:700,background:role?`linear-gradient(135deg,${B.accent},${B.dim})`:"rgba(255,255,255,0.05)",color:role?B.white:B.gray,cursor:role?"pointer":"not-allowed"}}>Begin Assessment →</button></div>
       </div>
     </div>
   );
@@ -258,20 +258,20 @@ export default function App() {
                   const sel = spotSel[i];
                   let bg = sel?"rgba(229,92,92,0.1)":"transparent", bd = sel?B.red:"transparent";
                   if (showFB) { if (s.flag&&sel){bg=`rgba(52,195,143,0.12)`;bd=B.green;} else if(s.flag&&!sel){bg=`rgba(244,183,64,0.08)`;bd=B.amber;} else if(!s.flag&&sel){bg=`rgba(229,92,92,0.1)`;bd=B.red;} else{bg="transparent";bd="transparent";} }
-                  return <span key={i} onClick={() => togSpot(i)} style={{cursor:showFB?"default":"pointer",padding:"1px 2px",borderRadius:2,background:bg,borderBottom:`2px solid ${bd}`,fontSize:12,color:B.frost,lineHeight:1.8,display:"inline"}}>{s.text}{" "}{showFB&&s.flag&&<span style={{fontSize:8,color:sel?B.green:B.amber,fontWeight:700}}>{sel?"\u2713 ":"missed "}</span>}{showFB&&!s.flag&&sel&&<span style={{fontSize:8,color:B.red,fontWeight:700}}>\u2717 </span>}</span>;
+                  return <span key={i} onClick={() => togSpot(i)} style={{cursor:showFB?"default":"pointer",padding:"1px 2px",borderRadius:2,background:bg,borderBottom:`2px solid ${bd}`,fontSize:12,color:B.frost,lineHeight:1.8,display:"inline"}}>{s.text}{" "}{showFB&&s.flag&&<span style={{fontSize:8,color:sel?B.green:B.amber,fontWeight:700}}>{sel?"✓ ":"missed "}</span>}{showFB&&!s.flag&&sel&&<span style={{fontSize:8,color:B.red,fontWeight:700}}>✗ </span>}</span>;
                 })}
               </div>
-              {showFB && <div style={{background:"rgba(255,255,255,0.02)",borderRadius:6,padding:"8px 12px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)"}}>{q.passage.filter(s=>s.flag).map((s,i)=><div key={i} style={{fontSize:10,color:B.frost,opacity:0.7,marginBottom:3,lineHeight:1.4}}><span style={{color:B.amber}}>\u2192</span> {s.reason}</div>)}</div>}
-              {!showFB ? <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:B.gray}}>{Object.values(spotSel).filter(Boolean).length} flagged</span><button onClick={subSpot} style={btnP}>Submit Flags</button></div> : waiting && <div style={{textAlign:"center",marginTop:6}}><button onClick={doContinue} style={btnP}>Continue \u2192</button></div>}
+              {showFB && <div style={{background:"rgba(255,255,255,0.02)",borderRadius:6,padding:"8px 12px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)"}}>{q.passage.filter(s=>s.flag).map((s,i)=><div key={i} style={{fontSize:10,color:B.frost,opacity:0.7,marginBottom:3,lineHeight:1.4}}><span style={{color:B.amber}}>→</span> {s.reason}</div>)}</div>}
+              {!showFB ? <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:B.gray}}>{Object.values(spotSel).filter(Boolean).length} flagged</span><button onClick={subSpot} style={btnP}>Submit Flags</button></div> : waiting && <div style={{textAlign:"center",marginTop:6}}><button onClick={doContinue} style={btnP}>Continue →</button></div>}
             </div>}
             {q.type==="slider" && <div>
               <input type="range" min={0} max={100} value={sliderV} onChange={e => setSliderV(+e.target.value)} disabled={locked} style={{width:"100%",accentColor:B.accent,cursor:locked?"default":"pointer",marginBottom:8}}/>
               <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:10,color:B.gray,maxWidth:"38%",lineHeight:1.3}}>{q.left}</span><span style={{fontSize:10,color:B.gray,maxWidth:"38%",textAlign:"right",lineHeight:1.3}}>{q.right}</span></div>
-              <div style={{textAlign:"center",marginTop:12}}><button onClick={subSlider} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Confirm \u2192</button></div>
+              <div style={{textAlign:"center",marginTop:12}}><button onClick={subSlider} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Confirm →</button></div>
             </div>}
             {q.type==="rank" && rankOrd.length>0 && <div>
-              <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>{rankOrd.map((it,i) => <div key={it.id} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 10px",background:"rgba(255,255,255,0.025)",borderRadius:6,border:"1px solid rgba(255,255,255,0.05)"}}><span style={{fontSize:12,fontWeight:700,color:B.accent,minWidth:16}}>{i+1}</span><span style={{flex:1,fontSize:11,color:B.frost}}>{it.text}</span><div style={{display:"flex",flexDirection:"column"}}>{i>0&&<button onClick={()=>moveR(i,i-1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>\u25b2</button>}{i<rankOrd.length-1&&<button onClick={()=>moveR(i,i+1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>\u25bc</button>}</div></div>)}</div>
-              <div style={{textAlign:"center"}}><button onClick={subRank} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Lock Ranking \u2192</button></div>
+              <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>{rankOrd.map((it,i) => <div key={it.id} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 10px",background:"rgba(255,255,255,0.025)",borderRadius:6,border:"1px solid rgba(255,255,255,0.05)"}}><span style={{fontSize:12,fontWeight:700,color:B.accent,minWidth:16}}>{i+1}</span><span style={{flex:1,fontSize:11,color:B.frost}}>{it.text}</span><div style={{display:"flex",flexDirection:"column"}}>{i>0&&<button onClick={()=>moveR(i,i-1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>▲</button>}{i<rankOrd.length-1&&<button onClick={()=>moveR(i,i+1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>▼</button>}</div></div>)}</div>
+              <div style={{textAlign:"center"}}><button onClick={subRank} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Lock Ranking →</button></div>
             </div>}
             {q.type==="rapid" && <div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>{q.statements.map((s,i) => {
@@ -283,10 +283,10 @@ export default function App() {
                     const isT = picked && a === opt; const isC = fbLocked && opt === s.correct;
                     return <button key={opt} onClick={() => handleRap(i,opt)} disabled={fbLocked} style={{padding:"4px 14px",borderRadius:4,fontSize:10,fontWeight:600,cursor:fbLocked?"default":"pointer",border:isT?`1px solid ${fbLocked?(ok?B.green:B.red):B.accent}`:isC?`1px solid ${B.green}`:"1px solid rgba(255,255,255,0.07)",background:isT?(fbLocked?(ok?`${B.green}10`:`${B.red}10`):`${B.accent}10`):isC?`${B.green}06`:"transparent",color:isT?(fbLocked?(ok?B.green:B.red):B.accent):isC?B.green:B.gray,textTransform:"capitalize",pointerEvents:fbLocked?"none":"auto"}}>{opt}</button>;
                   })}</div>
-                  {fbLocked&&picked&&<div style={{fontSize:9,color:ok?B.green:B.amber,marginTop:4,lineHeight:1.4}}>{ok?"\u2713 ":"\u2717 "}{s.explanation}</div>}
+                  {fbLocked&&picked&&<div style={{fontSize:9,color:ok?B.green:B.amber,marginTop:4,lineHeight:1.4}}>{ok?"✓ ":"✗ "}{s.explanation}</div>}
                 </div>;
               })}</div>
-              {waiting && <div style={{textAlign:"center",marginTop:10}}><button onClick={doContinue} style={btnP}>Continue \u2192</button></div>}
+              {waiting && <div style={{textAlign:"center",marginTop:10}}><button onClick={doContinue} style={btnP}>Continue →</button></div>}
             </div>}
           </div>
         </div>
@@ -304,7 +304,7 @@ export default function App() {
           <div style={{textAlign:"center",marginBottom:20}}>
             <div style={{fontSize:9,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Assessment Complete</div>
             {orgName&&<div style={{fontSize:11,color:B.gray}}>{orgName}</div>}
-            <div style={{fontSize:10,color:B.gray}}>{ROLES.find(r=>r.id===role)?.label} \u00b7 {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{fontSize:10,color:B.gray}}>{ROLES.find(r=>r.id===role)?.label} · {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
           </div>
           <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:24,marginBottom:16,border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"}}>
             <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:90,height:90,borderRadius:"50%",border:`3px solid ${lv.color}`,marginBottom:10}}><div><div style={{fontSize:30,fontWeight:800,color:lv.color,lineHeight:1}}>{ov}</div><div style={{fontSize:8,color:B.gray}}>/ 100</div></div></div>
@@ -326,7 +326,7 @@ export default function App() {
             <button onClick={fullReset} style={{...btnO,marginRight:6}}>Retake</button>
             <button style={btnP}>Request Full Org Assessment</button>
           </div>
-          <div style={{textAlign:"center",marginTop:14,fontSize:8,color:B.gray}}>\u00a9 ArcticMind {new Date().getFullYear()} \u00b7 v3.0</div>
+          <div style={{textAlign:"center",marginTop:14,fontSize:8,color:B.gray}}>© ArcticMind {new Date().getFullYear()} · v3.0</div>
         </div>
       </div>
     );
