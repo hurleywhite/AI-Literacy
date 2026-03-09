@@ -1,339 +1,33 @@
 import { useState, useEffect, useRef } from "react";
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Cell } from "recharts";
 import { supabase } from "./supabaseClient";
 
-const BRAND = {
-  navy: "#0B1D3A",
-  deepBlue: "#122B52",
-  accent: "#3AAFDB",
-  accentDim: "#2A8FB8",
-  ice: "#E8F4F8",
-  frost: "#C5E4EF",
-  white: "#FFFFFF",
-  gray: "#7B8FA3",
-  green: "#34C38F",
-  amber: "#F4B740",
-  red: "#E55C5C",
-  darkText: "#0F2644",
-  purple: "#9B59B6",
-  orange: "#E67E22",
+const B = {
+  navy: "#0B1D3A", deep: "#0F2440", accent: "#3AAFDB", dim: "#2A8FB8",
+  frost: "#C5E4EF", white: "#FFFFFF", gray: "#7B8FA3", green: "#34C38F",
+  amber: "#F4B740", red: "#E55C5C",
 };
-
 const ROLES = [
-  { id: "knowledge", label: "Knowledge Worker", desc: "Analyst, coordinator, specialist, or individual contributor" },
-  { id: "manager", label: "People Manager", desc: "Team lead, director, or department head" },
-  { id: "hr", label: "HR / People Ops", desc: "Talent, L&D, people analytics, or workforce planning" },
-  { id: "finance", label: "Finance", desc: "FP&A, accounting, audit, or financial operations" },
-  { id: "it_product", label: "IT / Product", desc: "Engineering, product management, IT operations, or security" },
+  { id: "knowledge", label: "Knowledge Worker", desc: "Analyst, specialist, IC" },
+  { id: "manager", label: "People Manager", desc: "Team lead, director" },
+  { id: "hr", label: "HR / People Ops", desc: "Talent, L&D, workforce" },
+  { id: "finance", label: "Finance", desc: "FP&A, accounting, audit" },
+  { id: "it_product", label: "IT / Product", desc: "Eng, PM, IT ops" },
 ];
-
-const DIMENSIONS = [
+const DIMS = [
   { id: "foundations", label: "AI Foundations", short: "Foundations", color: "#3AAFDB" },
   { id: "proficiency", label: "Tool Proficiency", short: "Proficiency", color: "#34C38F" },
   { id: "judgment", label: "Critical Judgment", short: "Judgment", color: "#F4B740" },
   { id: "workflow", label: "Workflow Integration", short: "Workflow", color: "#9B59B6" },
   { id: "mindset", label: "Mindset & Experimentation", short: "Mindset", color: "#E67E22" },
 ];
-
-/*
-SCORING PHILOSOPHY:
-- Scores are NOT linear from "least to most enthusiastic about AI"
-- The MOST aggressive/confident answer is sometimes a 2 or 3, not a 4
-- Overcorrection (blind trust, reckless adoption) scores LOWER than calibrated caution
-- The best answers demonstrate JUDGMENT, not enthusiasm
-- Many questions have no obvious "right" answer — they test tradeoff reasoning
-*/
-
-const QUESTIONS = [
-  // ====== FOUNDATIONS (5) ======
-  {
-    dimension: "foundations",
-    text: "Your CEO announces: \"We're going to use AI to make all our hiring decisions faster and more objective.\" In a leadership meeting, you're asked for your honest reaction. What's closest to what you'd actually say?",
-    scalar: true,
-    options: [
-      { text: "Great idea — AI removes human bias from hiring, so decisions will be fairer and faster", score: 1 },
-      { text: "Let's pilot it. We can track whether AI selections perform better than human ones and adjust from there", score: 2 },
-      { text: "This is a bad idea — we shouldn't let machines make decisions about people's careers", score: 2 },
-      { text: "I'm concerned. AI hiring tools have well-documented bias issues and this might create more legal risk than it solves. I'd want to understand the specific tool, what data it trains on, and whether we have the oversight structure to catch problems", score: 4 },
-    ],
-  },
-  {
-    dimension: "foundations",
-    text: "A vendor tells you their AI product is \"99% accurate.\" What's your first instinct?",
-    scalar: true,
-    options: [
-      { text: "That's impressive — sounds like a solid product", score: 1 },
-      { text: "All vendors exaggerate. I'd ignore the claim and just test it myself", score: 3 },
-      { text: "I don't trust accuracy numbers — AI is too unpredictable to put a number on", score: 1 },
-      { text: "I'd want to know: 99% accurate at what? On whose data? Measured how? And what happens in the 1% failure case — because if the failure mode is catastrophic, 99% might not be good enough", score: 4 },
-    ],
-  },
-  {
-    dimension: "foundations",
-    text: "Two colleagues are debating. One says AI will eliminate most white-collar jobs within 5 years. The other says it's overhyped and won't change much. Who's closer to right?",
-    options: [
-      { text: "The first one — AI is advancing incredibly fast and most knowledge work will be automated", score: 1 },
-      { text: "The second one — people have been predicting automation replacing jobs for decades and it never really happens", score: 1 },
-      { text: "Neither. AI will likely reshape roles more than eliminate them — the tasks within jobs will shift, but the transition will be uneven across industries and functions. The real risk is for orgs that do nothing", score: 4 },
-      { text: "It's impossible to predict — nobody really knows what will happen", score: 2 },
-    ],
-  },
-  {
-    dimension: "foundations",
-    text: "Your company wants to build an internal AI tool using company data. The engineering team says they can have a prototype in two weeks. What question would you ask first?",
-    options: [
-      { text: "How will we prevent the AI from surfacing confidential data to people who shouldn't have access to it?", score: 4 },
-      { text: "What's the projected ROI?", score: 2 },
-      { text: "Can we see a demo of what it would look like?", score: 1 },
-      { text: "Two weeks sounds fast — we should take longer to make sure it's built properly", score: 2 },
-    ],
-  },
-  {
-    dimension: "foundations",
-    text: "You read that a major AI company just released a model that scores \"expert-level\" on medical licensing exams. What does this mean for using AI in healthcare?",
-    scalar: true,
-    options: [
-      { text: "AI is now ready to help diagnose patients — this could democratize access to healthcare", score: 1 },
-      { text: "We should immediately pilot AI-assisted diagnostics at hospitals that volunteer — the potential benefit is too large to wait", score: 1 },
-      { text: "It doesn't mean much — AI can't replace doctors", score: 2 },
-      { text: "Exam performance doesn't equal clinical competence. Exams are structured and predictable; patient care involves ambiguity, context, and stakes that benchmarks don't capture. It's promising but the gap between test performance and safe deployment is enormous", score: 4 },
-    ],
-  },
-
-  // ====== PROFICIENCY (5) ======
-  {
-    dimension: "proficiency",
-    text: "You ask AI to write an email to a frustrated client. The draft is polished but feels generic. You're in a rush. What do you actually do?",
-    scalar: true,
-    options: [
-      { text: "Send it — it's professional and the client won't know the difference", score: 1 },
-      { text: "Paste our recent email thread into the AI and ask it to draft something that reflects the specific situation and tone of our relationship", score: 3 },
-      { text: "Rewrite it from scratch — AI doesn't understand this client relationship", score: 2 },
-      { text: "Keep the structure, but rewrite the opening and closing to reference specific details from our relationship. Add one sentence that only someone who knows this client would write", score: 4 },
-    ],
-  },
-  {
-    dimension: "proficiency",
-    text: "You're using AI to help analyze quarterly sales data. The AI summary says revenue grew 12% YoY. You glance at the raw numbers and the growth looks closer to 8%. What do you do?",
-    scalar: true,
-    options: [
-      { text: "Go with the AI number — it probably accounted for something I'm not seeing", score: 1 },
-      { text: "Go with my quick calculation — I trust my own math more", score: 2 },
-      { text: "Flag both numbers in my report and note the discrepancy so leadership can decide which methodology to use", score: 3 },
-      { text: "Dig into the discrepancy. Ask the AI to show its calculation step by step, then verify against the raw data. The gap itself is the most important thing to understand — it reveals either my error or the AI's", score: 4 },
-    ],
-  },
-  {
-    dimension: "proficiency",
-    text: "A colleague asks you to recommend an AI tool for their work. You've never used one for their specific task. What's your honest response?",
-    options: [
-      { text: "Recommend the AI tool I use most — it's probably versatile enough", score: 1 },
-      { text: "Tell them I don't know enough about their specific task to recommend something, but I'd be happy to help them test 2–3 options against a real task from their work to see what actually fits", score: 4 },
-      { text: "Point them to a review site or YouTube comparison so they can decide themselves", score: 2 },
-      { text: "Tell them AI probably isn't the right solution until they know exactly what problem they're solving", score: 3 },
-    ],
-  },
-  {
-    dimension: "proficiency",
-    text: "You've been using an AI tool for a month and it's saving you real time. Then a newer, \"better\" tool launches. What's your move?",
-    scalar: true,
-    options: [
-      { text: "Switch immediately — newer is usually better in AI", score: 1 },
-      { text: "Wait 3–6 months for reviews to come in before considering a switch", score: 2 },
-      { text: "Stick with what works — switching costs are real and the new tool is unproven in my workflow", score: 3 },
-      { text: "Run both on the same task for a week. Compare on speed, accuracy, and output quality for my specific use cases — then decide based on evidence, not hype", score: 4 },
-    ],
-  },
-  {
-    dimension: "proficiency",
-    text: "You're trying to use AI to draft a complex project proposal. After three attempts, the output is mediocre. What's your next step?",
-    scalar: true,
-    options: [
-      { text: "Give up on AI for this task — some things are too complex for it", score: 1 },
-      { text: "Try a completely different AI tool — this one clearly can't handle it", score: 1 },
-      { text: "Feed the AI a similar proposal I wrote before and ask it to follow that structure with updated details", score: 3 },
-      { text: "Break the proposal into smaller components (executive summary, timeline, risk section) and generate each piece separately with specific context and constraints. The task was probably too broad for a single prompt", score: 4 },
-    ],
-  },
-
-  // ====== JUDGMENT (5) ======
-  {
-    dimension: "judgment",
-    text: "Your team builds an AI workflow that saves 10 hours per week. Three months later, you notice the quality of the outputs has quietly degraded — but nobody else has flagged it. What do you do?",
-    scalar: true,
-    options: [
-      { text: "Nothing yet — if nobody's complained, the quality is probably still acceptable", score: 1 },
-      { text: "Mention it at the next team meeting and see if others have noticed", score: 2 },
-      { text: "Immediately shut down the workflow until quality is restored", score: 2 },
-      { text: "Document the specific degradation, assess the business impact, then bring it to the team with a proposal: either recalibrate the workflow or add a periodic quality check. The 10 hours saved are only valuable if the output is trustworthy", score: 4 },
-    ],
-  },
-  {
-    dimension: "judgment",
-    text: "Your company's legal team asks you to stop using AI for any client-facing work until they finish a 6-month policy review. But your competitors are clearly using AI to move faster. What do you do?",
-    options: [
-      { text: "Follow the policy — legal risk isn't worth the speed advantage", score: 3 },
-      { text: "Use AI anyway but don't mention it — the policy is overly cautious and we're falling behind", score: 1 },
-      { text: "Propose a middle path: identify 2–3 low-risk, internal-facing use cases that legal can approve quickly while the broader review continues. Show legal you're being responsible while not losing 6 months of progress", score: 4 },
-      { text: "Escalate to senior leadership — legal is blocking innovation and someone needs to override them", score: 1 },
-    ],
-  },
-  {
-    dimension: "judgment",
-    text: "An AI tool generates a summary of a client meeting. It's 95% accurate but includes one detail that didn't actually come up in the meeting — a plausible-sounding action item attributed to the client. What's the right call?",
-    scalar: true,
-    options: [
-      { text: "Share it as-is but note it was AI-generated so the client can flag any inaccuracies", score: 1 },
-      { text: "Remove the fabricated item and share the rest — most of it is accurate", score: 2 },
-      { text: "Discard the entire summary and write it manually — if it hallucinated one thing, the rest can't be trusted either", score: 2 },
-      { text: "Remove the fabricated item, verify every remaining point against your notes, then share with a note about how the summary was generated. Use this as a data point to calibrate how much verification this tool needs going forward", score: 4 },
-    ],
-  },
-  {
-    dimension: "judgment",
-    text: "A junior team member is excited about an AI tool they found online and wants to use it for a sensitive internal project. The tool isn't on the company's approved list. What do you tell them?",
-    scalar: true,
-    options: [
-      { text: "Great initiative — go ahead and use it, just don't upload anything confidential", score: 1 },
-      { text: "Let me test it first with non-sensitive data. If it works well, I'll handle the approval process", score: 3 },
-      { text: "Absolutely not — if it's not approved, it's not allowed. Full stop", score: 2 },
-      { text: "I appreciate you finding this. Before we use it, we need to understand its data handling: does it train on inputs? Where is data stored? What are the terms of service? If it checks those boxes, let's submit it for IT review. If not, let's find an approved alternative that does something similar", score: 4 },
-    ],
-  },
-  {
-    dimension: "judgment",
-    text: "You're presenting AI-generated analysis to the board. A board member asks: \"How confident are you in these numbers?\" What do you say?",
-    scalar: true,
-    options: [
-      { text: "Very confident — the AI model is highly capable and the methodology is sound", score: 1 },
-      { text: "I wouldn't present numbers I'm not confident in. The analysis is solid", score: 2 },
-      { text: "Moderately confident — AI helped with the analysis but I'd recommend validating independently before acting on it", score: 3 },
-      { text: "I've verified the key findings against our source data and they hold up. But I want to be transparent: the analysis was AI-assisted, which means I've spot-checked the outputs rather than computed every number by hand. Here's where I'm most and least confident, and here's what I'd want to validate further before making major decisions based on this", score: 4 },
-    ],
-  },
-
-  // ====== WORKFLOW (5) ======
-  {
-    dimension: "workflow",
-    text: "Your boss asks you to identify which of your team's processes would benefit most from AI. You have 50+ processes. How do you prioritize?",
-    options: [
-      { text: "Start with whatever processes use the most labor hours — that's where the biggest ROI is", score: 2 },
-      { text: "Ask each team member what they'd like to automate", score: 1 },
-      { text: "Score each process on three factors: how repetitive it is, how easy it is to verify the output, and what happens if the AI gets it wrong. Start with high-repetition, easy-to-verify, low-consequence tasks — even if they're not the highest-hour processes", score: 4 },
-      { text: "Pick the most painful process and try AI on it — if it works on the hardest one, it'll work on the rest", score: 1 },
-    ],
-  },
-  {
-    dimension: "workflow",
-    text: "You've automated a report that used to take 4 hours using AI. It now takes 20 minutes. But the AI-generated version occasionally has formatting errors that take 10 minutes to fix. Is this workflow a success?",
-    scalar: true,
-    options: [
-      { text: "Yes — we're saving 3.5 hours per report even with the fixes", score: 2 },
-      { text: "Partially — it's worth using but I'd keep the manual process as a backup", score: 3 },
-      { text: "No — if we can't trust the output, we haven't really automated anything", score: 1 },
-      { text: "Depends. Track the formatting errors over 10 reports. If they're consistent and predictable, build a fix into the workflow (template, post-processing script, or adjusted prompt). If they're random and growing, the automation has a reliability problem. The answer is in the pattern, not any single report", score: 4 },
-    ],
-  },
-  {
-    dimension: "workflow",
-    text: "A colleague in another department asks how you used AI to improve a process. They want to replicate it. But their workflow is quite different from yours. What's your advice?",
-    scalar: true,
-    options: [
-      { text: "Introduce them to the AI tool I used and let them figure out how it applies to their work", score: 1 },
-      { text: "Share my exact prompts and tools — they can adapt from there", score: 2 },
-      { text: "Offer to build their workflow for them — I already know what works", score: 2 },
-      { text: "Tell them the principle behind what worked (breaking complex tasks into smaller ones, providing specific context, building verification steps) and suggest they map their own workflow first before choosing tools. The approach transfers; the specifics probably don't", score: 4 },
-    ],
-  },
-  {
-    dimension: "workflow",
-    text: "Your team starts using AI heavily and individual output goes up 30%. But in a team retrospective, several people say they feel less creative and more like \"AI editors\" than original thinkers. How do you respond?",
-    scalar: true,
-    options: [
-      { text: "That's the tradeoff — the productivity gains are worth it", score: 1 },
-      { text: "Let each person decide how much AI they want to use — make it optional", score: 3 },
-      { text: "Scale back AI usage to restore creative ownership", score: 2 },
-      { text: "This is important signal. Redesign the workflow: use AI for the parts that are genuinely repetitive (data gathering, formatting, first-pass analysis) but protect the parts where human creativity adds the most value (strategy, synthesis, client insight). Productivity without engagement is a slow-burning retention problem", score: 4 },
-    ],
-  },
-  {
-    dimension: "workflow",
-    text: "You discover that a process you automated with AI 6 months ago is now producing subtly different outputs than when you first set it up — the AI model was updated by the vendor. Nothing is \"wrong\" but the outputs are inconsistent with historical data. What do you do?",
-    scalar: true,
-    options: [
-      { text: "Nothing — the newer model is probably better anyway", score: 1 },
-      { text: "Pin to the older model version if possible and continue as before", score: 2 },
-      { text: "Report it to the vendor and ask them to maintain backward compatibility", score: 2 },
-      { text: "Compare outputs from both versions against your quality criteria. If the new version is actually better, update your baselines. If consistency matters more than marginal quality improvement, pin to the old version. Either way, add model version tracking to your workflow documentation — this will happen again", score: 4 },
-    ],
-  },
-
-  // ====== MINDSET (5) ======
-  {
-    dimension: "mindset",
-    text: "Your company offers a voluntary 2-hour AI training session during work hours. Attendance is tracked but not required. Do you go?",
-    scalar: true,
-    options: [
-      { text: "No — I'll learn AI on my own when I need to", score: 1 },
-      { text: "Yes — any learning opportunity is worth taking", score: 2 },
-      { text: "Yes, and I'd encourage my whole team to go", score: 3 },
-      { text: "Depends entirely on who's running it and what's covered. If it's a generic overview I've heard before, my time is better spent. If it's hands-on with real use cases, I'm there. I'd check the agenda first and advocate for making it more practical if it looks too theoretical", score: 4 },
-    ],
-  },
-  {
-    dimension: "mindset",
-    text: "You use AI to complete a task in 30 minutes that normally takes your team a full day. When presenting the result, do you mention that AI helped?",
-    scalar: true,
-    options: [
-      { text: "No — the result speaks for itself and mentioning AI might make people trust it less", score: 1 },
-      { text: "Yes, proudly — it shows I'm innovative and efficient", score: 2 },
-      { text: "Only if asked — I don't want to make colleagues feel they need to use AI to keep up", score: 3 },
-      { text: "Yes, but framed specifically: explain what AI handled, what I verified, and what I added. This normalizes AI use, builds trust through transparency, and helps others learn what's possible — without overselling or underselling my contribution", score: 4 },
-    ],
-  },
-  {
-    dimension: "mindset",
-    text: "You try an AI experiment at work and it fails spectacularly — the output is embarrassingly wrong and you've wasted a morning. A colleague asks how it went. What do you say?",
-    scalar: true,
-    options: [
-      { text: "\"AI isn't ready for this kind of work yet\" — and move on", score: 1 },
-      { text: "\"It didn't work, but I don't want to talk about it\" — it's embarrassing", score: 1 },
-      { text: "\"It didn't work this time, but I'll try again with a different approach\"", score: 3 },
-      { text: "\"It failed, and here's exactly why — I gave it too broad a task without enough constraints. Next time I'd approach it differently by doing X.\" Then share the specific failure with the team because someone else was probably about to make the same mistake", score: 4 },
-    ],
-  },
-  {
-    dimension: "mindset",
-    text: "An industry report says your specific job function has a \"high automation potential\" within 3 years. How does this affect your behavior?",
-    scalar: true,
-    options: [
-      { text: "I'd start looking for a role that's harder to automate", score: 1 },
-      { text: "I'm not worried — these predictions are usually overblown", score: 1 },
-      { text: "I'd start learning as many AI tools as possible to stay ahead of the curve", score: 2 },
-      { text: "I'd study which parts of my role are most automatable and start building depth in the parts that aren't — judgment, relationships, creative strategy. Then I'd learn to orchestrate the AI tools that automate the rest, so I'm the person who makes the automation work, not the person replaced by it", score: 4 },
-    ],
-  },
-  {
-    dimension: "mindset",
-    text: "Your team is debating whether to adopt AI for a key process. Half the team is excited, half is resistant. You're asked to make the call. What do you decide?",
-    scalar: true,
-    options: [
-      { text: "Adopt it — the resistant half will come around once they see results", score: 1 },
-      { text: "Don't adopt it — forcing tools on people who resist them creates bigger problems than not having the tool", score: 2 },
-      { text: "Let each person decide individually whether to use it — don't force standardization", score: 2 },
-      { text: "Run a time-boxed pilot with volunteers from both sides. Give the skeptics a genuine role in evaluating results — not just observing. Their concerns probably surface real risks that the enthusiasts are glossing over. Make the final decision based on measured results, not opinions", score: 4 },
-    ],
-  },
-];
-
 const LEVELS = [
-  { min: 0, max: 35, label: "Unaware", grade: "Level 1", color: BRAND.red, desc: "Minimal AI understanding. Significant upskilling needed before safe, productive AI use. Priority: foundational literacy and supervised tool exposure." },
-  { min: 36, max: 52, label: "Aware", grade: "Level 2", color: BRAND.amber, desc: "Basic awareness but limited practical capability. Ready for structured learning with guided experiments and clear guardrails." },
-  { min: 53, max: 72, label: "Capable", grade: "Level 3", color: BRAND.accent, desc: "Solid foundation with real-world application. Ready for advanced workflows, cross-team knowledge sharing, and expanded use cases." },
-  { min: 73, max: 88, label: "Proficient", grade: "Level 4", color: BRAND.green, desc: "Strong across all dimensions. Candidate for AI champion role — can train peers, design workflows, and contribute to governance." },
-  { min: 89, max: 100, label: "Advanced", grade: "Level 5", color: BRAND.green, desc: "Exceptional AI readiness. Natural leader for adoption initiatives. Combines tool fluency with governance awareness and experimental discipline." },
+  { min: 0, max: 35, label: "Unaware", grade: "Level 1", color: B.red },
+  { min: 36, max: 52, label: "Aware", grade: "Level 2", color: B.amber },
+  { min: 53, max: 72, label: "Capable", grade: "Level 3", color: B.accent },
+  { min: 73, max: 88, label: "Proficient", grade: "Level 4", color: B.green },
+  { min: 89, max: 100, label: "Advanced", grade: "Level 5", color: B.green },
 ];
-
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -342,42 +36,65 @@ function shuffle(arr) {
   }
   return a;
 }
-
+const SKEY = "arcticmind-v3";
+async function storageSave(d) { try { if (window.storage) await window.storage.set(SKEY, JSON.stringify(d)); } catch(e) {} }
+async function storageLoad() { try { if (window.storage) { const r = await window.storage.get(SKEY); if (r && r.value) return JSON.parse(r.value); } } catch(e) {} return null; }
+async function storageClear() { try { if (window.storage) await window.storage.delete(SKEY); } catch(e) {} }
+const QUESTIONS = [
+  { type:"scenario", dim:"foundations", text:"Your CEO emails everyone: \"Every team should be using AI by end of quarter.\" No further guidance. What do you do?", options:[{text:"Start experimenting — the mandate gives you cover",score:3},{text:"Wait for your manager to clarify",score:1},{text:"Ask the CEO what \"using AI\" means specifically",score:4},{text:"Forward to IT and ask them to recommend tools",score:2}]},
+  { type:"spotlight", dim:"foundations", text:"A vendor sent this pitch. Tap every claim that should give you pause:", passage:[{text:"Our platform uses state-of-the-art deep learning",flag:false},{text:"trained on the largest proprietary dataset in the industry.",flag:true,reason:"\"Largest\" by what metric? Unverifiable."},{text:"It achieves 99.7% accuracy across all business applications",flag:true,reason:"No model hits 99.7% on ALL tasks."},{text:"and is trusted by 200+ enterprises.",flag:false},{text:"Your data is processed in real-time and never stored.",flag:true,reason:"How is it processed if never stored?"},{text:"Our models continuously learn from your usage,",flag:true,reason:"Who owns the improvements? IP/privacy question."},{text:"delivering personalized results.",flag:false}]},
+  { type:"rapid", dim:"foundations", text:"Quick takes — agree or disagree:", statements:[{text:"Most companies would benefit from slowing their AI adoption",correct:"agree",explanation:"Thoughtful > fast. Speed without governance creates risk."},{text:"A small team using AI well matters more than an AI strategy doc",correct:"agree",explanation:"Proof points > plans."},{text:"AI governance is mostly about preventing employee mistakes",correct:"disagree",explanation:"It's about enabling smart use, not just blocking misuse."},{text:"If you're not using AI today, you're falling behind",correct:"disagree",explanation:"Depends on the job. Not every role benefits from AI yet."}]},
+  { type:"slider", dim:"foundations", text:"Where do you honestly fall?", left:"Most AI hype is overblown — real impact on most jobs will be modest", right:"AI is genuinely transformative — most roles will fundamentally change within 3-5 years"},
+  { type:"scenario", dim:"foundations", text:"A colleague is worried AI will replace their job. They ask your honest take.", options:[{text:"Parts of your job will change but you'll still be needed",score:3},{text:"I'd start learning AI tools now just in case",score:3},{text:"AI isn't as capable as media makes it sound — you'll be fine",score:1},{text:"Nobody knows for sure, but understanding what AI can and can't do in your domain is the key",score:4}]},
+  { type:"scenario", dim:"proficiency", text:"Need a 40-page report summarized by EOD. AI: 30 min. Manual: 3 hours. Important client.", options:[{text:"Use AI and review carefully — 30 minutes is 30 minutes",score:4},{text:"Write it yourself — stakes are too high",score:3},{text:"AI first draft, then an hour rewriting key sections",score:3},{text:"Use AI and send quick — client wants speed",score:1}]},
+  { type:"spotlight", dim:"proficiency", text:"You asked AI to draft a project status update. Tap what needs editing:", passage:[{text:"Migration is on track for March 15.",flag:false},{text:"Team morale is high and engineering is fully aligned.",flag:true,reason:"AI guessing about morale — you'd need to know this."},{text:"We resolved the database latency issue.",flag:false},{text:"Based on velocity, we have capacity for Phase 2 in April.",flag:true,reason:"AI making capacity commitments on your behalf."},{text:"QA completes Friday.",flag:false},{text:"No blockers at this time.",flag:true,reason:"AI can't know your blockers."}]},
+  { type:"rank", dim:"proficiency", text:"Your prompt isn't working. Rank fixes from \"try first\" to \"try last\":", items:[{id:"a",text:"Add a specific example of good output",ideal:1},{id:"b",text:"Break the task into smaller steps",ideal:2},{id:"c",text:"Give more background context",ideal:3},{id:"d",text:"Try a different AI tool",ideal:4},{id:"e",text:"Ask the AI to explain its reasoning first",ideal:5}]},
+  { type:"scenario", dim:"proficiency", text:"Used ChatGPT for 6 months. Colleague says Claude is better for your work. How much time to evaluate?", options:[{text:"An afternoon — run 3 common tasks through both",score:4},{text:"None — I'm productive with what I have",score:3},{text:"A full week of parallel usage",score:2},{text:"Switch if someone I trust vouches for it",score:1}]},
+  { type:"rapid", dim:"proficiency", text:"Quick takes on AI tools:", statements:[{text:"Better to master one tool deeply than use many superficially",correct:"agree",explanation:"Depth beats breadth for productivity."},{text:"If 3 prompts don't work, the tool probably can't do it",correct:"disagree",explanation:"Complex tasks often need 5-10 iterations."},{text:"AI brainstorming is a waste — just gives generic ideas",correct:"disagree",explanation:"AI brainstorming + your curation = faster ideation."},{text:"Prompt quality matters more than which model you use",correct:"agree",explanation:"For most business tasks, prompt > model."}]},
+  { type:"scenario", dim:"judgment", text:"Intern used AI for competitor research in a client deck. Looks solid but unverified. Presentation in 2 hours.", options:[{text:"Spot-check the 3-4 most important claims",score:4},{text:"Cut the section — unverifiable analysis isn't worth the risk",score:3},{text:"Keep it — looks reasonable and we're short on time",score:1},{text:"Ask intern to add sources for every claim",score:2}]},
+  { type:"slider", dim:"judgment", text:"Colleague pasted sensitive customer data into ChatGPT. The analysis was useful. How do you handle it?", left:"Focus on the policy violation — can't happen again regardless of results", right:"Focus on the insight — find a compliant way to replicate this"},
+  { type:"spotlight", dim:"judgment", text:"AI drafted a client email. Tap what to change before sending:", passage:[{text:"Hi Sarah, great speaking last week.",flag:false},{text:"I reviewed your supply chain challenges",flag:false},{text:"and I believe we can reduce costs by 30-40%.",flag:true,reason:"ROI promise you can't guarantee."},{text:"Our platform integrates seamlessly with SAP,",flag:true,reason:"\"Seamlessly\" is almost never true."},{text:"and deploys in under 6 weeks.",flag:false},{text:"I'd love to connect with your VP of Ops, Mark Chen.",flag:true,reason:"Did Sarah mention Mark? Possible hallucination."}]},
+  { type:"scenario", dim:"judgment", text:"AI policy says \"no AI for customer content.\" But your internal AI analysis keeps getting forwarded to customers by sales.", options:[{text:"Flag it — policy has a gap",score:4},{text:"Stop using AI for anything that could reach customers",score:3},{text:"Not your problem — you followed the policy",score:1},{text:"Add disclaimers noting AI assistance",score:3}]},
+  { type:"rapid", dim:"judgment", text:"Quick judgment calls:", statements:[{text:"AI report with one error should be fully discarded",correct:"disagree",explanation:"Fix the error, verify the rest."},{text:"OK to use AI for tasks your boss thinks you did manually",correct:"disagree",explanation:"Hidden AI use erodes trust when discovered."},{text:"Compliance team banning all AI is prudent",correct:"disagree",explanation:"Blanket bans drive Shadow AI."},{text:"Sometimes the right call is to skip AI even when faster",correct:"agree",explanation:"Speed isn't the only variable."}]},
+  { type:"rank", dim:"workflow", text:"Starting AI in your team's workflow. Rank these steps:", items:[{id:"a",text:"Pick one low-stakes task to test",ideal:1},{id:"b",text:"Define what good output looks like first",ideal:2},{id:"c",text:"Run through AI and compare to manual",ideal:3},{id:"d",text:"Document what worked and share",ideal:4},{id:"e",text:"Build into recurring workflow with review",ideal:5}]},
+  { type:"scenario", dim:"workflow", text:"AI saves 10 hrs/week on reports. But only you know how the workflow works.", options:[{text:"Document it so anyone can run it",score:4},{text:"Train one person as backup",score:3},{text:"Keep running it — not broken",score:1},{text:"Automate further so nobody needs to understand it",score:2}]},
+  { type:"scenario", dim:"workflow", text:"Automated a weekly report with AI. Manager says it \"feels different\" but data is accurate.", options:[{text:"Ask what feels off, adjust the prompt",score:4},{text:"Go back to manual — perception matters",score:3},{text:"Explain it's AI and the data checks out",score:2},{text:"Ignore it — accuracy is what matters",score:1}]},
+  { type:"slider", dim:"workflow", text:"How much of your recurring work could benefit from AI right now?", left:"Almost none — too much judgment or context needed", right:"Most of it — I see AI applications everywhere"},
+  { type:"rapid", dim:"workflow", text:"Quick takes on AI workflows:", statements:[{text:"80% as good but 10x faster is usually worth adopting",correct:"agree",explanation:"With human review, the math works."},{text:"Automate your most time-consuming task first",correct:"disagree",explanation:"Start easiest to verify."},{text:"AI works best replacing entire tasks",correct:"disagree",explanation:"Best as collaborator on subtasks."},{text:"If a workflow needs constant oversight, it's not saving time",correct:"disagree",explanation:"Oversight + AI is still faster."}]},
+  { type:"scenario", dim:"mindset", text:"Optional AI training day. You're busy. What do you actually do?", options:[{text:"Skip — learn better on my own",score:2},{text:"Go if it's hands-on, not lecture-based",score:4},{text:"Go to everything — any AI learning helps",score:3},{text:"Send a junior — they'll benefit more",score:2}]},
+  { type:"scenario", dim:"mindset", text:"AI experiment failed — terrible output, 45 min wasted. Next move?", options:[{text:"Note what went wrong, try differently tomorrow",score:4},{text:"Cross this off the AI list",score:2},{text:"Keep trying now with different prompts",score:3},{text:"Ask a colleague better with AI to try",score:3}]},
+  { type:"slider", dim:"mindset", text:"When you hear about a new AI capability:", left:"I want to understand its limits before trying it", right:"I want to try it immediately and discover the limits myself"},
+  { type:"rank", dim:"mindset", text:"What changes someone's mind about AI? Rank most to least effective:", items:[{id:"a",text:"Seeing a colleague solve a real problem with it",ideal:1},{id:"b",text:"Trying it yourself on your own work",ideal:2},{id:"c",text:"A manager encouraging experimentation",ideal:3},{id:"d",text:"Reading case studies",ideal:4},{id:"e",text:"Attending a workshop",ideal:5}]},
+  { type:"scenario", dim:"mindset", text:"Half your team excited, half resistant. You make the call.", options:[{text:"Pilot with both camps. Skeptics evaluate. Decide on data",score:4},{text:"Mandate it — resistance holds us back",score:1},{text:"Make it optional per person",score:2},{text:"One low-stakes process everyone tries. Build evidence",score:4}]},
+];
 export default function App() {
   const [screen, setScreen] = useState("welcome");
   const [role, setRole] = useState(null);
   const [orgName, setOrgName] = useState("");
-  const [currentQ, setCurrentQ] = useState(0);
-  const [answers, setAnswers] = useState({});
+  const [cQ, setCQ] = useState(0);
+  const [ans, setAns] = useState({});
   const [locked, setLocked] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(null);
-  const [shuffledQuestions, setShuffledQuestions] = useState([]);
-  const [fadeIn, setFadeIn] = useState(true);
-  const [showContactForm, setShowContactForm] = useState(false);
-  const [contactForm, setContactForm] = useState({ name: "", email: "", org: "", size: "", message: "" });
-  const [contactSubmitted, setContactSubmitted] = useState(false);
-  const [assessmentId, setAssessmentId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [pQs, setPQs] = useState([]);
+  const [fade, setFade] = useState(true);
+  const [waiting, setWaiting] = useState(false);
+  const pendingRef = useRef(null);
+  const [spotSel, setSpotSel] = useState({});
+  const [sliderV, setSliderV] = useState(50);
+  const [rankOrd, setRankOrd] = useState([]);
+  const [rapAns, setRapAns] = useState({});
+  const [selIdx, setSelIdx] = useState(null);
+  const [showFB, setShowFB] = useState(false);
   const hasSaved = useRef(false);
 
+  // Load saved progress on mount
   useEffect(() => {
-    if (screen === "assessment") {
-      const grouped = DIMENSIONS.map(d => {
-        const dimQs = QUESTIONS.filter(q => q.dimension === d.id);
-        return dimQs.map(q => {
-          if (q.scalar) {
-            // Scalar questions: randomly present in authored order OR reversed
-            // This prevents gaming by always picking the last option
-            const flip = Math.random() < 0.5;
-            return { ...q, options: flip ? [...q.options].reverse() : [...q.options] };
-          }
-          // Non-scalar questions: shuffle options
-          return { ...q, options: shuffle(q.options) };
-        });
-      });
-      setShuffledQuestions(grouped.flat());
-    }
-  }, [screen]);
+    storageLoad().then(s => {
+      if (s && s.screen === "assessment" && s.cQ < QUESTIONS.length) {
+        setRole(s.role); setOrgName(s.orgName || ""); setCQ(s.cQ);
+        setAns(s.ans || {}); setPQs(s.pQs || []); setScreen("resume");
+      }
+    });
+  }, []);
 
   // Save assessment results to Supabase when reaching results screen
   useEffect(() => {
@@ -385,497 +102,234 @@ export default function App() {
     hasSaved.current = true;
 
     async function saveResults() {
-      setSaving(true);
       try {
-        const scores = {};
-        DIMENSIONS.forEach(d => { scores[d.id] = { total: 0, count: 0 }; });
-        Object.values(answers).forEach(a => {
-          if (scores[a.dimension]) {
-            scores[a.dimension].total += a.score;
-            scores[a.dimension].count += 1;
-          }
-        });
-        const dimScores = {};
-        DIMENSIONS.forEach(d => {
-          const s = scores[d.id];
-          dimScores[d.id] = s.count > 0 ? Math.round((s.total / (s.count * 4)) * 100) : 0;
-        });
-        const vals = Object.values(dimScores);
-        const overall = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-        const level = LEVELS.find(l => overall >= l.min && overall <= l.max) || LEVELS[0];
-
         if (!supabase) return;
-        const { data, error } = await supabase
+        const scores = getScores();
+        const ov = getOv();
+        const lv = getLv(ov);
+
+        await supabase
           .from("assessment_results")
           .insert({
             organization_name: orgName || null,
             role: role,
-            overall_score: overall,
-            overall_level: level.label,
-            foundations_score: dimScores.foundations,
-            proficiency_score: dimScores.proficiency,
-            judgment_score: dimScores.judgment,
-            workflow_score: dimScores.workflow,
-            mindset_score: dimScores.mindset,
-            answers: answers,
+            overall_score: ov,
+            overall_level: lv.label,
+            foundations_score: scores.foundations,
+            proficiency_score: scores.proficiency,
+            judgment_score: scores.judgment,
+            workflow_score: scores.workflow,
+            mindset_score: scores.mindset,
+            answers: ans,
             user_agent: navigator.userAgent,
-          })
-          .select()
-          .single();
-
-        if (!error && data) {
-          setAssessmentId(data.id);
-        }
+          });
       } catch (err) {
         console.error("Failed to save assessment:", err);
-      } finally {
-        setSaving(false);
       }
     }
 
     saveResults();
   }, [screen]);
 
-  const totalQuestions = QUESTIONS.length;
-  const progress = totalQuestions > 0 ? ((currentQ + 1) / totalQuestions) * 100 : 0;
-
-  function handleAnswer(index, score) {
-    if (locked) return;
-    setLocked(true);
-    setSelectedIndex(index);
-    setTimeout(() => {
-      const q = shuffledQuestions[currentQ];
-      setAnswers(prev => ({ ...prev, [currentQ]: { dimension: q.dimension, score } }));
-      if (currentQ < totalQuestions - 1) {
-        setFadeIn(false);
-        setTimeout(() => {
-          setCurrentQ(prev => prev + 1);
-          setSelectedIndex(null);
-          setLocked(false);
-          setFadeIn(true);
-        }, 200);
-      } else {
-        setScreen("results");
-      }
-    }, 350);
+  function prep() { return QUESTIONS.map(q => q.type === "scenario" ? {...q, options: shuffle(q.options)} : q.type === "rank" ? {...q, items: shuffle(q.items)} : {...q}); }
+  function startFresh() { const qs = prep(); setPQs(qs); setCQ(0); setAns({}); setScreen("assessment"); storageSave({screen:"assessment",role,orgName,cQ:0,ans:{},pQs:qs}); }
+  function resetI() { setSpotSel({}); setSliderV(50); setRankOrd([]); setRapAns({}); setSelIdx(null); setShowFB(false); setWaiting(false); pendingRef.current = null; }
+  function advance(dim, score) {
+    const na = {...ans, [cQ]: {dim, score}}; setAns(na);
+    if (cQ < QUESTIONS.length - 1) {
+      setFade(false); const nq = cQ + 1;
+      setTimeout(() => { setCQ(nq); resetI(); setLocked(false); setFade(true); storageSave({screen:"assessment",role,orgName,cQ:nq,ans:na,pQs}); }, 200);
+    } else { storageClear(); setScreen("results"); }
   }
-
-  function getScores() {
-    const scores = {};
-    DIMENSIONS.forEach(d => { scores[d.id] = { total: 0, count: 0 }; });
-    Object.values(answers).forEach(a => {
-      if (scores[a.dimension]) {
-        scores[a.dimension].total += a.score;
-        scores[a.dimension].count += 1;
-      }
-    });
-    const result = {};
-    DIMENSIONS.forEach(d => {
-      const s = scores[d.id];
-      result[d.id] = s.count > 0 ? Math.round((s.total / (s.count * 4)) * 100) : 0;
-    });
-    return result;
+  function waitContinue(dim, score) { setWaiting(true); pendingRef.current = {dim, score}; }
+  function doContinue() { if (pendingRef.current) advance(pendingRef.current.dim, pendingRef.current.score); }
+  function handleScen(i, score) { if (locked) return; setLocked(true); setSelIdx(i); setTimeout(() => advance(pQs[cQ].dim, score), 400); }
+  function togSpot(i) { if (!showFB) setSpotSel(p => ({...p, [i]: !p[i]})); }
+  function subSpot() {
+    setShowFB(true); const q = pQs[cQ]; const fl = q.passage.filter(s => s.flag);
+    const h = fl.filter(f => spotSel[q.passage.indexOf(f)]).length;
+    const ff = Object.keys(spotSel).filter(k => spotSel[k] && !q.passage[k].flag).length;
+    const a = fl.length > 0 ? (h - ff * 0.5) / fl.length : 0;
+    waitContinue(q.dim, a >= 0.9 ? 4 : a >= 0.6 ? 3 : a >= 0.3 ? 2 : 1);
   }
-
-  function getOverallScore() {
-    const scores = getScores();
-    const vals = Object.values(scores);
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  function subSlider() { if (locked) return; setLocked(true); const v = sliderV; const sc = v >= 50 && v <= 75 ? 4 : v >= 35 && v <= 85 ? 3 : v >= 20 ? 2 : 1; setTimeout(() => advance(pQs[cQ].dim, sc), 300); }
+  function moveR(f, t) { if (locked) return; const o = [...rankOrd]; const [it] = o.splice(f, 1); o.splice(t, 0, it); setRankOrd(o); }
+  function subRank() {
+    if (locked) return; setLocked(true); let d = 0;
+    rankOrd.forEach((it, i) => { d += Math.abs((i+1) - it.ideal); });
+    const mx = rankOrd.length * (rankOrd.length - 1) / 2; const n = 1 - (d / (mx * 2));
+    setTimeout(() => advance(pQs[cQ].dim, n >= 0.85 ? 4 : n >= 0.6 ? 3 : n >= 0.35 ? 2 : 1), 300);
   }
-
-  function getLevel(score) {
-    return LEVELS.find(l => score >= l.min && score <= l.max) || LEVELS[0];
-  }
-
-  function getRecommendations(scores) {
-    const recs = [];
-    const sorted = DIMENSIONS.map(d => ({ ...d, score: scores[d.id] })).sort((a, b) => a.score - b.score);
-    const lowest = sorted[0];
-    const secondLowest = sorted[1];
-    const highest = sorted[sorted.length - 1];
-
-    const recMap = {
-      foundations: {
-        low: "Priority gap: AI conceptual foundations. Focus on understanding what models can and can't do, how to evaluate vendor claims critically, and the real-world limitations behind impressive benchmarks. Recommended: scenario-based learning (not lectures) that forces calibration between AI hype and reality.",
-        high: "Strong conceptual grounding. Leverage this by contributing to internal AI governance discussions and helping colleagues develop more realistic mental models of AI capabilities."
-      },
-      proficiency: {
-        low: "Priority gap: hands-on tool fluency. Start with structured experiments on low-stakes tasks — but focus on the iteration loop (why did this output miss, and how do I adjust?), not just the initial prompt. The skill is in refinement, not generation.",
-        high: "Strong tool fluency. Push toward multi-tool orchestration: how do different tools chain together to handle complex workflows? Document your best practices as reusable templates for your team."
-      },
-      judgment: {
-        low: "This is the highest-risk gap. Without strong judgment, AI usage creates more liability than value. Prioritize: output verification habits, data privacy instincts, and learning to calibrate confidence ('how sure am I that this AI output is correct, and what's at stake if it's wrong?').",
-        high: "Excellent critical judgment. You're the person who should be reviewing others' AI workflows for risk and quality. Consider contributing to your org's AI usage policies."
-      },
-      workflow: {
-        low: "Priority gap: systematic workflow thinking. Start by mapping your top 5 repetitive tasks, but resist the urge to automate the biggest ones first. Pick the most verifiable, lowest-consequence task and build a repeatable process before scaling.",
-        high: "Strong workflow integration skills. You're ready to help other teams identify their own AI opportunities. Focus on documentation and knowledge transfer — your playbooks are potentially more valuable than your personal productivity gains."
-      },
-      mindset: {
-        low: "The biggest unlock isn't a tool or a skill — it's shifting from threat-avoidance to structured experimentation. Start with: one deliberate AI experiment per week, with a specific hypothesis and a willingness to share what you learn (especially failures).",
-        high: "Your experimental mindset is a multiplier. Use it to create psychological safety for others: share your failures openly, champion structured pilot programs, and model the behavior of treating every AI interaction as a learning opportunity."
-      },
-    };
-
-    recs.push({ type: "priority", title: `#1 Priority: ${lowest.label}`, text: recMap[lowest.id].low, color: BRAND.red });
-    if (secondLowest.score < 60) {
-      recs.push({ type: "attention", title: `#2 Needs Attention: ${secondLowest.label}`, text: recMap[secondLowest.id].low, color: BRAND.amber });
+  function handleRap(i, a) {
+    if (showFB) return;
+    const current = rapAns[i];
+    let na;
+    if (current === a) {
+      // Clicking same answer deselects it
+      na = {...rapAns};
+      delete na[i];
+    } else {
+      na = {...rapAns, [i]: a};
     }
-    recs.push({ type: "strength", title: `Strength: ${highest.label}`, text: recMap[highest.id].high, color: BRAND.green });
-
-    return recs;
+    setRapAns(na);
+    const q = pQs[cQ];
+    if (Object.keys(na).length === q.statements.length) {
+      setShowFB(true);
+      let c = 0;
+      q.statements.forEach((s, j) => { if (na[j] === s.correct) c++; });
+      waitContinue(q.dim, c === q.statements.length ? 4 : c >= 3 ? 3 : c >= 2 ? 2 : 1);
+    }
   }
-
-  const inputStyle = {
-    width: "100%", padding: "12px 16px", borderRadius: 8,
-    border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)",
-    color: BRAND.white, fontSize: 14, outline: "none", boxSizing: "border-box",
-  };
-  const labelStyle = {
-    display: "block", fontSize: 12, fontWeight: 600, color: BRAND.frost,
-    textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6,
-  };
-
-  // ============ WELCOME ============
-  if (screen === "welcome") {
+  useEffect(() => { if (pQs.length > 0 && pQs[cQ]?.type === "rank") setRankOrd([...pQs[cQ].items]); }, [cQ, pQs]);
+  function getScores() {
+    const sc = {}; DIMS.forEach(d => { sc[d.id] = {t:0, c:0}; });
+    Object.values(ans).forEach(a => { if (sc[a.dim]) { sc[a.dim].t += a.score; sc[a.dim].c += 1; } });
+    const r = {}; DIMS.forEach(d => { const s = sc[d.id]; r[d.id] = s.c > 0 ? Math.round((s.t / (s.c * 4)) * 100) : 0; }); return r;
+  }
+  function getOv() { const s = getScores(); const v = Object.values(s); return Math.round(v.reduce((a,b) => a+b, 0) / v.length); }
+  function getLv(n) { return LEVELS.find(l => n >= l.min && n <= l.max) || LEVELS[0]; }
+  function fullReset() { storageClear(); setScreen("welcome"); setCQ(0); setAns({}); setRole(null); setOrgName(""); setLocked(false); setPQs([]); resetI(); hasSaved.current = false; }
+  const total = QUESTIONS.length;
+  const progress = total > 0 ? ((cQ + 1) / total) * 100 : 0;
+  const btnP = { padding:"10px 28px", borderRadius:8, border:"none", fontSize:13, fontWeight:600, background:`linear-gradient(135deg,${B.accent},${B.dim})`, color:B.white, cursor:"pointer" };
+  const btnO = { padding:"10px 28px", borderRadius:8, border:`1px solid ${B.accent}`, background:"transparent", color:B.accent, fontSize:13, fontWeight:600, cursor:"pointer" };
+  // ===== RESUME =====
+  if (screen === "resume") return (
+    <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${B.navy},${B.deep})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui",padding:20}}>
+      <div style={{maxWidth:400,textAlign:"center"}}>
+        <h2 style={{fontSize:20,fontWeight:700,color:B.white,marginBottom:6}}>Welcome back</h2>
+        <p style={{fontSize:13,color:B.frost,opacity:0.65,marginBottom:20}}>Question {cQ+1} of {total}</p>
+        <button onClick={() => setScreen("assessment")} style={{...btnP,marginRight:8}}>Continue</button>
+        <button onClick={fullReset} style={btnO}>Start Over</button>
+      </div>
+    </div>
+  );
+  // ===== WELCOME =====
+  if (screen === "welcome") return (
+    <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${B.navy},${B.deep},#1a3a6a)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui",padding:20}}>
+      <div style={{maxWidth:520,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:26}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,marginBottom:14}}>
+            <div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${B.accent},${B.frost})`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:14,fontWeight:800,color:B.navy}}>A</span></div>
+            <span style={{fontSize:14,fontWeight:700,color:B.frost,letterSpacing:2,textTransform:"uppercase"}}>ArcticMind</span>
+          </div>
+          <h1 style={{fontSize:26,fontWeight:800,color:B.white,margin:"0 0 6px"}}>AI Readiness Assessment</h1>
+          <p style={{fontSize:12,color:B.frost,opacity:0.6,lineHeight:1.6}}>25 interactive challenges. Scenarios, spotlights, rankings, and rapid-fire.<br/>Progress saves automatically. ~12 minutes.</p>
+        </div>
+        <div style={{background:"rgba(255,255,255,0.04)",borderRadius:11,padding:"18px 16px",marginBottom:14,border:"1px solid rgba(255,255,255,0.07)"}}>
+          <label style={{display:"block",fontSize:10,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>Organization (optional)</label>
+          <input type="text" value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="e.g. Acme Corp" autoComplete="organization" style={{width:"100%",padding:"9px 12px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:B.white,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12}}/>
+          <label style={{display:"block",fontSize:10,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Select your role</label>
+          <div style={{display:"flex",flexDirection:"column",gap:3}}>
+            {ROLES.map(r => <button key={r.id} onClick={() => setRole(r.id)} style={{padding:"9px 12px",borderRadius:6,cursor:"pointer",textAlign:"left",border:role===r.id?`2px solid ${B.accent}`:"1px solid rgba(255,255,255,0.06)",background:role===r.id?"rgba(58,175,219,0.07)":"transparent"}}><span style={{fontSize:12,fontWeight:600,color:role===r.id?B.accent:B.white}}>{r.label}</span><span style={{fontSize:10,color:B.gray,marginLeft:6}}>{r.desc}</span></button>)}
+          </div>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,justifyContent:"center",marginBottom:14}}>
+          {["\ud83d\udcac Scenarios","\ud83d\udd0d Spotlights","\u26a1 Rapid Fire","\ud83d\udcca Rankings","\u2194\ufe0f Spectrum"].map((t,i) => <span key={i} style={{padding:"2px 8px",borderRadius:10,background:"rgba(255,255,255,0.03)",color:B.frost,fontSize:9}}>{t}</span>)}
+        </div>
+        <div style={{textAlign:"center"}}><button onClick={() => {if(role) startFresh();}} disabled={!role} style={{padding:"11px 36px",borderRadius:8,border:"none",fontSize:13,fontWeight:700,background:role?`linear-gradient(135deg,${B.accent},${B.dim})`:"rgba(255,255,255,0.05)",color:role?B.white:B.gray,cursor:role?"pointer":"not-allowed"}}>Begin Assessment \u2192</button></div>
+      </div>
+    </div>
+  );
+  // ===== ASSESSMENT =====
+  if (screen === "assessment" && pQs.length > 0 && cQ < pQs.length) {
+    const q = pQs[cQ]; const dim = DIMS.find(d => d.id === q.dim);
+    const tl = {scenario:"\ud83d\udcac Scenario",spotlight:"\ud83d\udd0d Spotlight",slider:"\u2194\ufe0f Spectrum",rank:"\ud83d\udcca Rank",rapid:"\u26a1 Rapid Fire"};
     return (
-      <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${BRAND.navy} 0%, ${BRAND.deepBlue} 50%, #1a3a6a 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', 'Helvetica Neue', sans-serif", padding: 20 }}>
-        <div style={{ maxWidth: 620, width: "100%" }}>
-          <div style={{ textAlign: "center", marginBottom: 36 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg, ${BRAND.accent}, ${BRAND.frost})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 18, color: BRAND.navy, fontWeight: 800 }}>A</span>
+      <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${B.navy},${B.deep})`,fontFamily:"system-ui",padding:20}}>
+        <div style={{maxWidth:640,margin:"0 auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{fontSize:9,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:1.5}}>ArcticMind</span>
+            <span style={{fontSize:10,color:B.gray}}>{cQ+1}/{total}</span>
+          </div>
+          <div style={{height:2,background:"rgba(255,255,255,0.04)",borderRadius:2,marginBottom:16,overflow:"hidden"}}><div style={{height:"100%",width:`${progress}%`,background:`linear-gradient(90deg,${B.accent},${B.green})`,transition:"width 0.4s"}}/></div>
+          <div style={{display:"flex",gap:5,marginBottom:10}}>
+            {dim && <span style={{padding:"2px 7px",borderRadius:10,background:`${dim.color}18`,color:dim.color,fontSize:9,fontWeight:700,textTransform:"uppercase"}}>{dim.label}</span>}
+            <span style={{padding:"2px 7px",borderRadius:10,background:"rgba(255,255,255,0.04)",color:B.frost,fontSize:9}}>{tl[q.type]}</span>
+          </div>
+          <div style={{opacity:fade?1:0,transition:"opacity 0.18s"}}>
+            <h2 style={{fontSize:16,fontWeight:700,color:B.white,lineHeight:1.5,margin:"0 0 16px"}}>{q.text}</h2>
+            {q.type==="scenario" && <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              {q.options.map((o,i) => <button key={i} onClick={() => handleScen(i,o.score)} disabled={locked} style={{padding:"11px 14px",borderRadius:7,textAlign:"left",cursor:locked?"default":"pointer",opacity:locked&&selIdx!==i?0.3:1,border:selIdx===i?`2px solid ${B.accent}`:"1px solid rgba(255,255,255,0.06)",background:selIdx===i?"rgba(58,175,219,0.08)":"rgba(255,255,255,0.02)",pointerEvents:locked?"none":"auto"}}><span style={{fontSize:12,color:selIdx===i?B.accent:B.frost,lineHeight:1.5}}>{o.text}</span></button>)}
+            </div>}
+            {q.type==="spotlight" && <div>
+              <div style={{background:"rgba(255,255,255,0.025)",borderRadius:7,padding:"12px 14px",marginBottom:10,border:"1px solid rgba(255,255,255,0.04)"}}>
+                {q.passage.map((s,i) => {
+                  const sel = spotSel[i];
+                  let bg = sel?"rgba(229,92,92,0.1)":"transparent", bd = sel?B.red:"transparent";
+                  if (showFB) { if (s.flag&&sel){bg=`rgba(52,195,143,0.12)`;bd=B.green;} else if(s.flag&&!sel){bg=`rgba(244,183,64,0.08)`;bd=B.amber;} else if(!s.flag&&sel){bg=`rgba(229,92,92,0.1)`;bd=B.red;} else{bg="transparent";bd="transparent";} }
+                  return <span key={i} onClick={() => togSpot(i)} style={{cursor:showFB?"default":"pointer",padding:"1px 2px",borderRadius:2,background:bg,borderBottom:`2px solid ${bd}`,fontSize:12,color:B.frost,lineHeight:1.8,display:"inline"}}>{s.text}{" "}{showFB&&s.flag&&<span style={{fontSize:8,color:sel?B.green:B.amber,fontWeight:700}}>{sel?"\u2713 ":"missed "}</span>}{showFB&&!s.flag&&sel&&<span style={{fontSize:8,color:B.red,fontWeight:700}}>\u2717 </span>}</span>;
+                })}
               </div>
-              <span style={{ fontSize: 18, fontWeight: 700, color: BRAND.frost, letterSpacing: 2, textTransform: "uppercase" }}>ArcticMind</span>
-            </div>
-            <h1 style={{ fontSize: 34, fontWeight: 800, color: BRAND.white, margin: "0 0 10px", lineHeight: 1.15 }}>AI Readiness Assessment</h1>
-            <p style={{ fontSize: 14, color: BRAND.frost, opacity: 0.7, margin: 0, lineHeight: 1.6 }}>
-              25 scenario-based questions. No obvious right answers —<br/>only tradeoffs that reveal how you actually think about AI at work.
-            </p>
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 16, padding: "24px 22px", marginBottom: 20, border: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Organization (optional)</label>
-              <input type="text" value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="e.g. Acme Corp" autoComplete="organization" id="assessment-org" style={inputStyle} />
-            </div>
-
-            <label style={{ ...labelStyle, marginBottom: 10 }}>Select your role</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {ROLES.map(r => (
-                <button key={r.id} onClick={() => setRole(r.id)}
-                  style={{
-                    padding: "12px 16px", borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s",
-                    border: role === r.id ? `2px solid ${BRAND.accent}` : "1px solid rgba(255,255,255,0.08)",
-                    background: role === r.id ? "rgba(58,175,219,0.1)" : "rgba(255,255,255,0.02)",
-                  }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: role === r.id ? BRAND.accent : BRAND.white }}>{r.label}</div>
-                  <div style={{ fontSize: 11, color: BRAND.gray, marginTop: 1 }}>{r.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "16px 20px", marginBottom: 20, border: "1px solid rgba(255,255,255,0.05)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND.frost, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>What this measures</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {DIMENSIONS.map(d => (
-                <span key={d.id} style={{ padding: "4px 10px", borderRadius: 16, background: `${d.color}18`, color: d.color, fontSize: 11, fontWeight: 600 }}>{d.label}</span>
-              ))}
-            </div>
-            <p style={{ fontSize: 12, color: BRAND.gray, margin: "10px 0 0", lineHeight: 1.5 }}>
-              Each question presents a realistic workplace scenario with competing valid approaches. The assessment measures how you reason through tradeoffs — not what you know about AI terminology.
-            </p>
-          </div>
-
-          <div style={{ textAlign: "center" }}>
-            <button onClick={() => role && setScreen("assessment")} disabled={!role}
-              style={{
-                padding: "13px 44px", borderRadius: 10, border: "none", fontSize: 15, fontWeight: 700,
-                background: role ? `linear-gradient(135deg, ${BRAND.accent}, ${BRAND.accentDim})` : "rgba(255,255,255,0.08)",
-                color: role ? BRAND.white : BRAND.gray, cursor: role ? "pointer" : "not-allowed",
-                transition: "all 0.3s", letterSpacing: 0.3
-              }}>
-              Begin Assessment →
-            </button>
+              {showFB && <div style={{background:"rgba(255,255,255,0.02)",borderRadius:6,padding:"8px 12px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)"}}>{q.passage.filter(s=>s.flag).map((s,i)=><div key={i} style={{fontSize:10,color:B.frost,opacity:0.7,marginBottom:3,lineHeight:1.4}}><span style={{color:B.amber}}>\u2192</span> {s.reason}</div>)}</div>}
+              {!showFB ? <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:B.gray}}>{Object.values(spotSel).filter(Boolean).length} flagged</span><button onClick={subSpot} style={btnP}>Submit Flags</button></div> : waiting && <div style={{textAlign:"center",marginTop:6}}><button onClick={doContinue} style={btnP}>Continue \u2192</button></div>}
+            </div>}
+            {q.type==="slider" && <div>
+              <input type="range" min={0} max={100} value={sliderV} onChange={e => setSliderV(+e.target.value)} disabled={locked} style={{width:"100%",accentColor:B.accent,cursor:locked?"default":"pointer",marginBottom:8}}/>
+              <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:10,color:B.gray,maxWidth:"38%",lineHeight:1.3}}>{q.left}</span><span style={{fontSize:10,color:B.gray,maxWidth:"38%",textAlign:"right",lineHeight:1.3}}>{q.right}</span></div>
+              <div style={{textAlign:"center",marginTop:12}}><button onClick={subSlider} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Confirm \u2192</button></div>
+            </div>}
+            {q.type==="rank" && rankOrd.length>0 && <div>
+              <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>{rankOrd.map((it,i) => <div key={it.id} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 10px",background:"rgba(255,255,255,0.025)",borderRadius:6,border:"1px solid rgba(255,255,255,0.05)"}}><span style={{fontSize:12,fontWeight:700,color:B.accent,minWidth:16}}>{i+1}</span><span style={{flex:1,fontSize:11,color:B.frost}}>{it.text}</span><div style={{display:"flex",flexDirection:"column"}}>{i>0&&<button onClick={()=>moveR(i,i-1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>\u25b2</button>}{i<rankOrd.length-1&&<button onClick={()=>moveR(i,i+1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>\u25bc</button>}</div></div>)}</div>
+              <div style={{textAlign:"center"}}><button onClick={subRank} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Lock Ranking \u2192</button></div>
+            </div>}
+            {q.type==="rapid" && <div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>{q.statements.map((s,i) => {
+                const a = rapAns[i]; const picked = a !== undefined; const ok = picked && a === s.correct;
+                const fbLocked = showFB;
+                return <div key={i} style={{padding:"10px 12px",borderRadius:7,background:"rgba(255,255,255,0.025)",border:fbLocked&&picked?`1px solid ${ok?B.green:B.red}28`:"1px solid rgba(255,255,255,0.04)"}}>
+                  <div style={{fontSize:11,color:B.frost,marginBottom:6,lineHeight:1.5}}>{s.text}</div>
+                  <div style={{display:"flex",gap:5}}>{["agree","disagree"].map(opt => {
+                    const isT = picked && a === opt; const isC = fbLocked && opt === s.correct;
+                    return <button key={opt} onClick={() => handleRap(i,opt)} disabled={fbLocked} style={{padding:"4px 14px",borderRadius:4,fontSize:10,fontWeight:600,cursor:fbLocked?"default":"pointer",border:isT?`1px solid ${fbLocked?(ok?B.green:B.red):B.accent}`:isC?`1px solid ${B.green}`:"1px solid rgba(255,255,255,0.07)",background:isT?(fbLocked?(ok?`${B.green}10`:`${B.red}10`):`${B.accent}10`):isC?`${B.green}06`:"transparent",color:isT?(fbLocked?(ok?B.green:B.red):B.accent):isC?B.green:B.gray,textTransform:"capitalize",pointerEvents:fbLocked?"none":"auto"}}>{opt}</button>;
+                  })}</div>
+                  {fbLocked&&picked&&<div style={{fontSize:9,color:ok?B.green:B.amber,marginTop:4,lineHeight:1.4}}>{ok?"\u2713 ":"\u2717 "}{s.explanation}</div>}
+                </div>;
+              })}</div>
+              {waiting && <div style={{textAlign:"center",marginTop:10}}><button onClick={doContinue} style={btnP}>Continue \u2192</button></div>}
+            </div>}
           </div>
         </div>
       </div>
     );
   }
-
-  // ============ ASSESSMENT ============
-  if (screen === "assessment" && shuffledQuestions.length > 0) {
-    const q = shuffledQuestions[currentQ];
-    const dim = DIMENSIONS.find(d => d.id === q.dimension);
-    return (
-      <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${BRAND.navy} 0%, ${BRAND.deepBlue} 100%)`, fontFamily: "'Segoe UI', 'Helvetica Neue', sans-serif", padding: "20px" }}>
-        <div style={{ maxWidth: 700, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, padding: "0 4px" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: BRAND.frost, textTransform: "uppercase", letterSpacing: 1.5 }}>ArcticMind</span>
-            <span style={{ fontSize: 12, color: BRAND.gray }}>{currentQ + 1} / {totalQuestions}</span>
-          </div>
-          <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 3, marginBottom: 28, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${progress}%`, background: `linear-gradient(90deg, ${BRAND.accent}, ${BRAND.green})`, borderRadius: 3, transition: "width 0.4s ease" }} />
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 16, background: `${dim.color}1A`, color: dim.color, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>{dim.label}</span>
-          </div>
-          <div style={{ opacity: fadeIn ? 1 : 0, transition: "opacity 0.18s ease" }}>
-            <h2 style={{ fontSize: 19, fontWeight: 700, color: BRAND.white, lineHeight: 1.5, margin: "0 0 24px", letterSpacing: -0.2 }}>{q.text}</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {q.options.map((opt, i) => {
-                const isSelected = selectedIndex === i;
-                const isDisabled = locked;
-                return (
-                  <button key={i} onClick={() => handleAnswer(i, opt.score)}
-                    disabled={isDisabled}
-                    style={{
-                      padding: "14px 18px", borderRadius: 10, textAlign: "left",
-                      cursor: isDisabled ? "default" : "pointer",
-                      opacity: locked && !isSelected ? 0.5 : 1,
-                      border: isSelected ? `2px solid ${BRAND.accent}` : "1px solid rgba(255,255,255,0.08)",
-                      background: isSelected ? "rgba(58,175,219,0.12)" : "rgba(255,255,255,0.03)",
-                      transition: "all 0.2s",
-                      pointerEvents: isDisabled ? "none" : "auto",
-                    }}>
-                    <span style={{ fontSize: 13, color: isSelected ? BRAND.accent : BRAND.frost, lineHeight: 1.55 }}>{opt.text}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ============ RESULTS ============
+  // ===== RESULTS =====
   if (screen === "results") {
-    const scores = getScores();
-    const overall = getOverallScore();
-    const level = getLevel(overall);
-    const recs = getRecommendations(scores);
-    const radarData = DIMENSIONS.map(d => ({ subject: d.short, score: scores[d.id], fullMark: 100 }));
-    const barData = DIMENSIONS.map(d => ({ name: d.short, score: scores[d.id], color: d.color }));
-
+    const scores = getScores(); const ov = getOv(); const lv = getLv(ov);
+    const rd = DIMS.map(d => ({subject:d.short,score:scores[d.id],fullMark:100}));
+    const bd = DIMS.map(d => ({name:d.short,score:scores[d.id],color:d.color}));
     return (
-      <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${BRAND.navy} 0%, ${BRAND.deepBlue} 100%)`, fontFamily: "'Segoe UI', 'Helvetica Neue', sans-serif", padding: "24px 20px" }}>
-        <div style={{ maxWidth: 780, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: BRAND.frost, textTransform: "uppercase", letterSpacing: 2, marginBottom: 6 }}>Assessment Results</div>
-            {orgName && <div style={{ fontSize: 14, color: BRAND.gray, marginBottom: 2 }}>{orgName}</div>}
-            <div style={{ fontSize: 12, color: BRAND.gray }}>
-              {orgName ? `${orgName} · ` : ""}{ROLES.find(r => r.id === role)?.label} · {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+      <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${B.navy},${B.deep})`,fontFamily:"system-ui",padding:20}}>
+        <div style={{maxWidth:700,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:9,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Assessment Complete</div>
+            {orgName&&<div style={{fontSize:11,color:B.gray}}>{orgName}</div>}
+            <div style={{fontSize:10,color:B.gray}}>{ROLES.find(r=>r.id===role)?.label} \u00b7 {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
+          </div>
+          <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:24,marginBottom:16,border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"}}>
+            <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:90,height:90,borderRadius:"50%",border:`3px solid ${lv.color}`,marginBottom:10}}><div><div style={{fontSize:30,fontWeight:800,color:lv.color,lineHeight:1}}>{ov}</div><div style={{fontSize:8,color:B.gray}}>/ 100</div></div></div>
+            <div style={{fontSize:16,fontWeight:800,color:B.white}}>{lv.label}</div>
+            <div style={{fontSize:10,color:lv.color,fontWeight:600}}>{lv.grade}</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+            <div style={{background:"rgba(255,255,255,0.035)",borderRadius:10,padding:"12px 6px",border:"1px solid rgba(255,255,255,0.05)"}}>
+              <ResponsiveContainer width="100%" height={180}><RadarChart data={rd} cx="50%" cy="50%" outerRadius="62%"><PolarGrid stroke="rgba(255,255,255,0.06)"/><PolarAngleAxis dataKey="subject" tick={{fill:B.frost,fontSize:8}}/><PolarRadiusAxis angle={90} domain={[0,100]} tick={false} axisLine={false}/><Radar dataKey="score" stroke={B.accent} fill={B.accent} fillOpacity={0.16} strokeWidth={2}/></RadarChart></ResponsiveContainer>
+            </div>
+            <div style={{background:"rgba(255,255,255,0.035)",borderRadius:10,padding:"12px 6px",border:"1px solid rgba(255,255,255,0.05)"}}>
+              <ResponsiveContainer width="100%" height={180}><BarChart data={bd} layout="vertical" margin={{left:0,right:8}}><XAxis type="number" domain={[0,100]} tick={{fill:B.gray,fontSize:7}} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="name" tick={{fill:B.frost,fontSize:8}} width={62} axisLine={false} tickLine={false}/><Bar dataKey="score" radius={[0,4,4,0]} barSize={14}>{bd.map((e,i)=><Cell key={i} fill={e.color}/>)}</Bar></BarChart></ResponsiveContainer>
             </div>
           </div>
-
-          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: "28px 24px", marginBottom: 20, border: "1px solid rgba(255,255,255,0.06)", textAlign: "center" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 110, height: 110, borderRadius: "50%", border: `3px solid ${level.color}`, marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 38, fontWeight: 800, color: level.color, lineHeight: 1 }}>{overall}</div>
-                <div style={{ fontSize: 10, color: BRAND.gray, marginTop: 2 }}>/ 100</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: BRAND.white, marginBottom: 3 }}>{level.label}</div>
-            <div style={{ fontSize: 12, color: level.color, fontWeight: 600, marginBottom: 10 }}>{level.grade}</div>
-            <p style={{ fontSize: 13, color: BRAND.frost, lineHeight: 1.6, maxWidth: 480, margin: "0 auto", opacity: 0.75 }}>{level.desc}</p>
+          <div style={{background:"rgba(255,255,255,0.035)",borderRadius:10,padding:16,marginBottom:16,border:"1px solid rgba(255,255,255,0.05)"}}>
+            {DIMS.map(d => {const s=scores[d.id];const l=getLv(s);return <div key={d.id} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:11,fontWeight:600,color:B.white}}>{d.label}</span><span style={{fontSize:10,color:l.color,fontWeight:700}}>{s}%</span></div><div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${s}%`,background:d.color,borderRadius:2}}/></div></div>;})}
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "18px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: BRAND.frost, textAlign: "center", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Competency Map</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="68%">
-                  <PolarGrid stroke="rgba(255,255,255,0.08)" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: BRAND.frost, fontSize: 10 }} />
-                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
-                  <Radar dataKey="score" stroke={BRAND.accent} fill={BRAND.accent} fillOpacity={0.18} strokeWidth={2} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "18px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: BRAND.frost, textAlign: "center", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Dimension Scores</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={barData} layout="vertical" margin={{ left: 0, right: 12 }}>
-                  <XAxis type="number" domain={[0, 100]} tick={{ fill: BRAND.gray, fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: BRAND.frost, fontSize: 10 }} width={72} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: BRAND.navy, border: `1px solid ${BRAND.accent}`, borderRadius: 8, color: BRAND.white, fontSize: 12 }} formatter={(v) => [`${v}%`, "Score"]} />
-                  <Bar dataKey="score" radius={[0, 5, 5, 0]} barSize={18}>
-                    {barData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div style={{textAlign:"center"}}>
+            <button onClick={fullReset} style={{...btnO,marginRight:6}}>Retake</button>
+            <button style={btnP}>Request Full Org Assessment</button>
           </div>
-
-          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "20px", marginBottom: 20, border: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: BRAND.frost, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Dimension Breakdown</div>
-            {DIMENSIONS.map(d => {
-              const s = scores[d.id]; const lvl = getLevel(s);
-              return (
-                <div key={d.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: BRAND.white }}>{d.label}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13, color: lvl.color, fontWeight: 700 }}>{s}%</span>
-                      <span style={{ fontSize: 10, color: BRAND.gray, padding: "1px 6px", borderRadius: 8, background: "rgba(255,255,255,0.05)" }}>{lvl.label}</span>
-                    </div>
-                  </div>
-                  <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${s}%`, background: d.color, borderRadius: 3, transition: "width 0.6s ease" }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "20px", marginBottom: 20, border: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: BRAND.frost, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Personalized Recommendations</div>
-            {recs.map((rec, i) => (
-              <div key={i} style={{ marginBottom: 14, paddingLeft: 14, borderLeft: `3px solid ${rec.color}` }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: rec.color, marginBottom: 3 }}>{rec.title}</div>
-                <p style={{ fontSize: 12, color: BRAND.frost, lineHeight: 1.6, margin: 0, opacity: 0.8 }}>{rec.text}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA Section */}
-          {!showContactForm ? (
-            <div style={{ background: `linear-gradient(135deg, rgba(58,175,219,0.1), rgba(52,195,143,0.06))`, borderRadius: 14, padding: "24px 20px", textAlign: "center", border: `1px solid ${BRAND.accent}25`, marginBottom: 20 }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: BRAND.white, marginBottom: 6 }}>What does this look like across your whole org?</div>
-              <p style={{ fontSize: 12, color: BRAND.frost, lineHeight: 1.6, marginBottom: 18, opacity: 0.7, maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
-                Individual scores tell one story. Org-wide patterns — by department, role, and seniority — tell a different one. We run structured assessments across your workforce and deliver an actionable readiness report.
-              </p>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                <button onClick={() => { setScreen("welcome"); setCurrentQ(0); setAnswers({}); setRole(null); setOrgName(""); setLocked(false); setSelectedIndex(null); setAssessmentId(null); hasSaved.current = false; }}
-                  style={{ padding: "10px 24px", borderRadius: 8, border: `1px solid ${BRAND.accent}`, background: "transparent", color: BRAND.accent, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  Retake Assessment
-                </button>
-                <button onClick={() => setShowContactForm(true)}
-                  style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${BRAND.accent}, ${BRAND.accentDim})`, color: BRAND.white, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  Request Full Org Assessment →
-                </button>
-              </div>
-            </div>
-          ) : !contactSubmitted ? (
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "24px 20px", border: `1px solid ${BRAND.accent}30`, marginBottom: 20 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: BRAND.white, marginBottom: 4 }}>Request a Full Org Assessment</div>
-              <p style={{ fontSize: 12, color: BRAND.gray, marginBottom: 16, lineHeight: 1.5 }}>
-                We'll reach out to schedule a brief call about running a structured assessment across your workforce.
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={labelStyle}>Name *</label>
-                  <input type="text" value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })} placeholder="Your name" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Work Email *</label>
-                  <input type="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })} placeholder="you@company.com" style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={labelStyle}>Organization *</label>
-                  <input type="text" value={contactForm.org} onChange={e => setContactForm({ ...contactForm, org: e.target.value })} placeholder="Company name" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Approx. Org Size</label>
-                  <select value={contactForm.size} onChange={e => setContactForm({ ...contactForm, size: e.target.value })}
-                    style={{ ...inputStyle, appearance: "auto" }}>
-                    <option value="" style={{ background: BRAND.navy }}>Select...</option>
-                    <option value="under-500" style={{ background: BRAND.navy }}>Under 500</option>
-                    <option value="500-2000" style={{ background: BRAND.navy }}>500 – 2,000</option>
-                    <option value="2000-10000" style={{ background: BRAND.navy }}>2,000 – 10,000</option>
-                    <option value="10000-50000" style={{ background: BRAND.navy }}>10,000 – 50,000</option>
-                    <option value="50000+" style={{ background: BRAND.navy }}>50,000+</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Anything specific you're looking for? (optional)</label>
-                <textarea value={contactForm.message} onChange={e => setContactForm({ ...contactForm, message: e.target.value })}
-                  placeholder="e.g. We're rolling out Copilot next quarter and want to measure readiness first..."
-                  rows={3} style={{ ...inputStyle, resize: "vertical" }} />
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => setShowContactForm(false)}
-                  style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "transparent", color: BRAND.gray, fontSize: 13, cursor: "pointer" }}>
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (contactForm.name && contactForm.email && contactForm.org) {
-                      // Save to Supabase
-                      try {
-                        if (supabase) await supabase.from("contact_requests").insert({
-                          assessment_id: assessmentId || null,
-                          name: contactForm.name,
-                          email: contactForm.email,
-                          organization: contactForm.org,
-                          org_size: contactForm.size || null,
-                          message: contactForm.message || null,
-                        });
-                      } catch (err) {
-                        console.error("Failed to save contact request:", err);
-                      }
-                      // Also open mailto as backup notification
-                      const resultsSummary = DIMENSIONS.map(d => `${d.label}: ${scores[d.id]}%`).join(" | ");
-                      const body = [
-                        "New ArcticMind Org Assessment Request",
-                        "",
-                        `From: ${contactForm.name}`,
-                        `Email: ${contactForm.email}`,
-                        `Organization: ${contactForm.org}`,
-                        `Org Size: ${contactForm.size || "Not specified"}`,
-                        "",
-                        `Individual Assessment Score: ${overall}/100 (${level.label})`,
-                        resultsSummary,
-                        `Role: ${ROLES.find(r => r.id === role)?.label}`,
-                        "",
-                        "Message:",
-                        contactForm.message || "No additional details provided.",
-                        "",
-                        "---",
-                        "Submitted via ArcticMind AI Readiness Assessment"
-                      ].join("\n");
-                      const subject = `Org Assessment Request - ${contactForm.org}`;
-                      window.open(`mailto:hello@arcticblue.ai?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank");
-                      setContactSubmitted(true);
-                    }
-                  }}
-                  disabled={!contactForm.name || !contactForm.email || !contactForm.org}
-                  style={{
-                    padding: "10px 28px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 600,
-                    cursor: contactForm.name && contactForm.email && contactForm.org ? "pointer" : "not-allowed",
-                    background: contactForm.name && contactForm.email && contactForm.org ? `linear-gradient(135deg, ${BRAND.accent}, ${BRAND.accentDim})` : "rgba(255,255,255,0.08)",
-                    color: contactForm.name && contactForm.email && contactForm.org ? BRAND.white : BRAND.gray,
-                  }}>
-                  Submit Request →
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ background: `linear-gradient(135deg, rgba(52,195,143,0.1), rgba(58,175,219,0.06))`, borderRadius: 14, padding: "24px 20px", textAlign: "center", border: `1px solid ${BRAND.green}30`, marginBottom: 20 }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: BRAND.green, marginBottom: 6 }}>Request Submitted</div>
-              <p style={{ fontSize: 12, color: BRAND.frost, opacity: 0.7, margin: "0 0 16px" }}>
-                We'll reach out to {contactForm.email} within 48 hours to schedule a brief call.
-              </p>
-              <button onClick={() => { setScreen("welcome"); setCurrentQ(0); setAnswers({}); setRole(null); setOrgName(""); setLocked(false); setSelectedIndex(null); setShowContactForm(false); setContactSubmitted(false); setContactForm({ name: "", email: "", org: "", size: "", message: "" }); setAssessmentId(null); hasSaved.current = false; }}
-                style={{ padding: "10px 24px", borderRadius: 8, border: `1px solid ${BRAND.accent}`, background: "transparent", color: BRAND.accent, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                Start Over
-              </button>
-            </div>
-          )}
-
-          <div style={{ textAlign: "center", marginTop: 20, fontSize: 10, color: BRAND.gray }}>
-            © ArcticMind {new Date().getFullYear()} · AI Readiness Assessment v2.0
-          </div>
+          <div style={{textAlign:"center",marginTop:14,fontSize:8,color:B.gray}}>\u00a9 ArcticMind {new Date().getFullYear()} \u00b7 v3.0</div>
         </div>
       </div>
     );
   }
-
   return null;
 }
