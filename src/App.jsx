@@ -373,7 +373,7 @@ export default function App() {
         <div style={{display:"flex",flexWrap:"wrap",gap:4,justifyContent:"center",marginBottom:14}}>
           {["\ud83d\udcac Scenarios","\ud83d\udd0d Spotlights","\u26a1 Rapid Fire","\ud83d\udcca Rankings","\u2194\ufe0f Spectrum"].map((t,i) => <span key={i} style={{padding:"2px 8px",borderRadius:10,background:"rgba(255,255,255,0.03)",color:B.frost,fontSize:9}}>{t}</span>)}
         </div>
-        <div style={{textAlign:"center"}}><button onClick={() => {if(canStart) startFresh();}} disabled={!canStart} style={{padding:"11px 36px",borderRadius:8,border:"none",fontSize:13,fontWeight:700,background:canStart?`linear-gradient(135deg,${B.accent},${B.dim})`:"rgba(255,255,255,0.05)",color:canStart?B.white:B.gray,cursor:canStart?"pointer":"not-allowed"}}>Begin Assessment \u2192</button></div>
+        <div style={{textAlign:"center"}}><button onClick={() => {if(canStart) startFresh();}} disabled={!canStart} style={{padding:"11px 36px",borderRadius:8,border:"none",fontSize:13,fontWeight:700,background:canStart?`linear-gradient(135deg,${B.accent},${B.dim})`:"rgba(255,255,255,0.05)",color:canStart?B.white:B.gray,cursor:canStart?"pointer":"not-allowed"}}>Begin Assessment →</button></div>
       </div>
     </div>
   );
@@ -386,7 +386,7 @@ export default function App() {
       <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${B.navy},${B.deep})`,fontFamily:"system-ui",padding:20}}>
         <div style={{maxWidth:640,margin:"0 auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-            <span style={{fontSize:9,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:1.5}}>ArcticMind {field && <span style={{color:B.accent,fontWeight:400,textTransform:"none"}}> \u00b7 {field}</span>}</span>
+            <span style={{fontSize:9,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:1.5}}>ArcticMind {field && <span style={{color:B.accent,fontWeight:400,textTransform:"none"}}> · {field}</span>}</span>
             <span style={{fontSize:10,color:B.gray}}>{cQ+1}/{pQs.length}</span>
           </div>
           <div style={{height:2,background:"rgba(255,255,255,0.04)",borderRadius:2,marginBottom:16,overflow:"hidden"}}><div style={{height:"100%",width:`${(cQ+1)/pQs.length*100}%`,background:`linear-gradient(90deg,${B.accent},${B.green})`,transition:"width 0.4s"}}/></div>
@@ -409,16 +409,16 @@ export default function App() {
                 })}
               </div>
               {showFB && <div style={{background:"rgba(255,255,255,0.02)",borderRadius:6,padding:"8px 12px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)"}}>{q.passage.filter(s=>s.flag).map((s,i)=><div key={i} style={{fontSize:10,color:B.frost,opacity:0.7,marginBottom:3,lineHeight:1.4}}><span style={{color:B.amber}}>{"\u2192"}</span> {s.reason}</div>)}</div>}
-              {!showFB ? <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:B.gray}}>{Object.values(spotSel).filter(Boolean).length} flagged</span><button onClick={subSpot} style={btnP}>Submit Flags</button></div> : waiting && <div style={{textAlign:"center",marginTop:6}}><button onClick={doContinue} style={btnP}>Continue \u2192</button></div>}
+              {!showFB ? <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:B.gray}}>{Object.values(spotSel).filter(Boolean).length} flagged</span><button onClick={subSpot} style={btnP}>Submit Flags</button></div> : waiting && <div style={{textAlign:"center",marginTop:6}}><button onClick={doContinue} style={btnP}>Continue →</button></div>}
             </div>}
             {q.type==="slider" && <div>
               <input type="range" min={0} max={100} value={sliderV} onChange={e => setSliderV(+e.target.value)} disabled={locked} style={{width:"100%",accentColor:B.accent,cursor:locked?"default":"pointer",marginBottom:8}}/>
               <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:10,color:B.gray,maxWidth:"38%",lineHeight:1.3}}>{q.left}</span><span style={{fontSize:10,color:B.gray,maxWidth:"38%",textAlign:"right",lineHeight:1.3}}>{q.right}</span></div>
-              <div style={{textAlign:"center",marginTop:12}}><button onClick={subSlider} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Confirm \u2192</button></div>
+              <div style={{textAlign:"center",marginTop:12}}><button onClick={subSlider} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Confirm →</button></div>
             </div>}
             {q.type==="rank" && rankOrd.length>0 && <div>
               <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>{rankOrd.map((it,i) => <div key={it.id} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 10px",background:"rgba(255,255,255,0.025)",borderRadius:6,border:"1px solid rgba(255,255,255,0.05)"}}><span style={{fontSize:12,fontWeight:700,color:B.accent,minWidth:16}}>{i+1}</span><span style={{flex:1,fontSize:11,color:B.frost}}>{it.text}</span><div style={{display:"flex",flexDirection:"column"}}>{i>0&&<button onClick={()=>moveR(i,i-1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>{"\u25b2"}</button>}{i<rankOrd.length-1&&<button onClick={()=>moveR(i,i+1)} disabled={locked} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:10,padding:"0 4px"}}>{"\u25bc"}</button>}</div></div>)}</div>
-              <div style={{textAlign:"center"}}><button onClick={subRank} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Lock Ranking \u2192</button></div>
+              <div style={{textAlign:"center"}}><button onClick={subRank} disabled={locked} style={{...btnP,opacity:locked?0.4:1}}>Lock Ranking →</button></div>
             </div>}
             {q.type==="rapid" && <div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>{q.statements.map((s,i) => {
@@ -433,7 +433,7 @@ export default function App() {
                   {fbLocked&&picked&&<div style={{fontSize:9,color:ok?B.green:B.amber,marginTop:4,lineHeight:1.4}}>{ok?"\u2713 ":"\u2717 "}{s.explanation}</div>}
                 </div>;
               })}</div>
-              {waiting && <div style={{textAlign:"center",marginTop:10}}><button onClick={doContinue} style={btnP}>Continue \u2192</button></div>}
+              {waiting && <div style={{textAlign:"center",marginTop:10}}><button onClick={doContinue} style={btnP}>Continue →</button></div>}
             </div>}
           </div>
         </div>
@@ -457,7 +457,7 @@ export default function App() {
             <div style={{fontSize:9,fontWeight:600,color:B.frost,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Assessment Complete</div>
             {field && <div style={{fontSize:12,color:B.accent,fontWeight:600,marginBottom:2}}>{field}</div>}
             {orgName&&<div style={{fontSize:11,color:B.gray}}>{orgName}</div>}
-            <div style={{fontSize:10,color:B.gray}}>{ROLES.find(r=>r.id===role)?.label} \u00b7 {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{fontSize:10,color:B.gray}}>{ROLES.find(r=>r.id===role)?.label} · {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
             {questionSource === "generated" && <div style={{fontSize:9,color:B.accent,opacity:0.5,marginTop:2}}>Personalized assessment</div>}
           </div>
 
@@ -627,7 +627,7 @@ export default function App() {
             <button onClick={fullReset} style={{...btnO,marginRight:6}}>Retake</button>
             <button style={btnP}>Request Full Org Assessment</button>
           </div>
-          <div style={{textAlign:"center",marginTop:14,fontSize:8,color:B.gray}}>{"\u00a9"} ArcticMind {new Date().getFullYear()} \u00b7 v4.0</div>
+          <div style={{textAlign:"center",marginTop:14,fontSize:8,color:B.gray}}>{"\u00a9"} ArcticMind {new Date().getFullYear()} · v4.0</div>
         </div>
       </div>
     );
