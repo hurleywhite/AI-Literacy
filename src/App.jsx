@@ -213,7 +213,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           field: field || "general business",
-          role: ROLES.find(r => r.id === role)?.label || role,
+          role: role,
         }),
       });
 
